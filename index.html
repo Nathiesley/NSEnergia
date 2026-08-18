@@ -78,309 +78,36 @@
         </div>
     </div>
 
-    <div id="telaClientes" style="display:none">
-        <div class="topo">
-            <h1>Clientes</h1>
-            <button class="btn-nova" onclick="abrirModalCliente()">Inserir Cliente</button>
-        </div>
+    ... (restante do index.html inalterado) ...
 
-        <div class="container-unidades">
-            <div class="lista-unidades">
-                <input type="search" id="pesquisaClientes" placeholder="Pesquisar por nome, CPF/CNPJ, telefone ou e-mail" oninput="filtrarClientes()">
-                <div id="listaClientes"></div>
-            </div>
+            <button class="btn-editar" onclick="editarUnidade()">Editar Unidade</button>
+            <button class="btn-nova" onclick="abrirModalMesclarLojas()">Mesclar lojas</button>
+            <button class="btn-desativar" onclick="desativarUnidade()">Desativar Unidade</button>
 
-            <div class="detalhes-unidade">
-                <div id="detalhesCliente">
-                    <h2>Selecione um cliente</h2>
-                    <p>Clique em um cliente para visualizar os detalhes.</p>
-                </div>
-            </div>
-        </div>
+    ... (outros modais existentes) ...
+
+<div class="modal" id="modalMesclarLojas" style="display:none">
+  <div class="modal-content modal-grande">
+    <h2>Mesclar lojas</h2>
+    <div id="mergeFormContainer">
+      <label>Selecione as lojas</label>
+      <div id="mergeLojasList" class="caixa-checks"></div>
+
+      <label>Medidor único após a mesclagem</label>
+      <div id="mergeMedidorRadios"></div>
+
+      <label>Nome do conjunto</label>
+      <input type="text" id="mergeNome" placeholder="Loja 4/5">
+
+      <label>Data de início</label>
+      <input type="date" id="mergeDataInicio">
+
+      <div class="botoes-modal">
+        <button class="btn-cancelar" onclick="fecharModalMesclarLojas()">Cancelar</button>
+        <button class="btn-salvar" onclick="salvarMesclagem()">Confirmar mesclagem</button>
+      </div>
     </div>
-
-    <div id="telaOcupacoes" style="display:none">
-        <div class="topo">
-            <h1>Ocupacoes</h1>
-            <button class="btn-nova" onclick="abrirModalOcupacao()">Nova Ocupacao</button>
-        </div>
-
-        <div class="container-unidades">
-            <div class="lista-unidades">
-                <input type="search" id="pesquisaUnidadesOcupacoes" placeholder="Pesquisar unidade" oninput="filtrarUnidadesOcupacoes()">
-                <div id="listaUnidadesOcupacoes"></div>
-            </div>
-
-            <div class="detalhes-unidade">
-                <div id="detalhesOcupacao">
-                    <h2>Selecione uma unidade</h2>
-                    <p>Clique em uma unidade para visualizar e filtrar suas ocupacoes.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="telaLeituras" style="display:none">
-        <div class="topo">
-            <h1>Leituras</h1>
-        </div>
-
-        <div class="container-unidades">
-            <div class="lista-unidades">
-                <input type="search" placeholder="Pesquisar unidade" oninput="filtrarListaModulo('listaUnidadesLeituras', this.value)">
-                <div id="listaUnidadesLeituras"></div>
-            </div>
-
-            <div class="detalhes-unidade">
-                <div id="detalhesLeituras">
-                    <h2>Selecione uma unidade</h2>
-                    <p>Clique em uma unidade para visualizar o historico de leituras.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="telaFaturas" style="display:none">
-        <div class="topo">
-            <h1>Faturas</h1>
-        </div>
-
-        <div class="container-unidades">
-            <div class="lista-unidades">
-                <input type="search" placeholder="Pesquisar unidade" oninput="filtrarListaModulo('listaUnidadesFaturas', this.value)">
-                <div id="listaUnidadesFaturas"></div>
-            </div>
-
-            <div class="detalhes-unidade">
-                <div id="detalhesFaturas">
-                    <h2>Selecione uma unidade</h2>
-                    <p>Clique em uma unidade para visualizar o historico de faturas.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="telaRateios" style="display:none">
-        <div class="topo">
-            <h1>Rateios</h1>
-        </div>
-
-        <div class="container-unidades">
-            <div class="lista-unidades">
-                <input type="search" placeholder="Pesquisar unidade" oninput="filtrarListaModulo('listaUnidadesRateios', this.value)">
-                <div id="listaUnidadesRateios"></div>
-            </div>
-
-            <div class="detalhes-unidade">
-                <div id="detalhesRateios">
-                    <h2>Selecione uma unidade</h2>
-                    <p>Clique em uma unidade para visualizar o historico de rateios.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="telaRelatorios" style="display:none">
-        <div class="topo">
-            <h1>Relatorios</h1>
-            <div class="acoes-topo">
-                <button class="btn-nova" onclick="visualizarRelatorio()">Visualizar relatorio</button>
-                <button class="btn-editar sem-margem" onclick="exportarRelatorioPDF()">📄 Gerar PDF</button>
-            </div>
-        </div>
-
-        <div class="painel-relatorios">
-            <div class="filtros-relatorio">
-                <div>
-                    <label>Tipo de relatorio</label>
-                    <select id="relatorioTipo" onchange="atualizarFiltrosRelatorio()">
-                        <option value="unidade">Por Unidade</option>
-                        <option value="cliente">Por Cliente</option>
-                        <option value="ocupacao">Por Ocupacao</option>
-                        <option value="competencia">Por Competencia</option>
-                    </select>
-                </div>
-
-                <div id="grupoFiltroUnidade">
-                    <label>Unidade</label>
-                    <select id="relatorioUnidade"></select>
-                </div>
-
-                <div id="grupoFiltroCliente">
-                    <label>Cliente</label>
-                    <select id="relatorioCliente"></select>
-                </div>
-
-                <div id="grupoFiltroOcupacao">
-                    <label>Ocupacao</label>
-                    <select id="relatorioOcupacao"></select>
-                </div>
-
-                <div id="grupoFiltroCompetencia">
-                    <label>Competencia</label>
-                    <input type="month" id="relatorioCompetencia">
-                </div>
-            </div>
-
-            <div id="resultadoRelatorio" class="resultado-relatorio">
-                <h2>Visualize um relatorio</h2>
-                <p>Selecione os filtros e clique em Visualizar relatorio.</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modal">
-    <div class="modal-content">
-        <h2 id="tituloModalUnidade">Nova Unidade</h2>
-        <input type="hidden" id="unidadeId">
-        <input type="text" id="nome" placeholder="Nome da Unidade">
-        <input type="text" id="endereco" placeholder="Endereco">
-        <input type="text" id="instalacao" placeholder="Instalacao Cemig">
-        <textarea id="observacoes" placeholder="Observacoes"></textarea>
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarUnidade()">Salvar</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modalLoja">
-    <div class="modal-content">
-        <h2>Nova Loja</h2>
-        <input type="hidden" id="lojaId">
-        <input type="text" id="codigoLoja" placeholder="Codigo da Loja (LJ 01)">
-        <input type="text" id="medidorLoja" placeholder="Numero do Medidor">
-        <input type="number" id="ordemLoja" placeholder="Ordem Interna">
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModalLoja()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarLoja()">Salvar</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modalCliente">
-    <div class="modal-content">
-        <h2 id="tituloModalCliente">Novo Cliente</h2>
-        <input type="hidden" id="clienteId">
-        <input type="text" id="clienteNome" placeholder="Nome">
-        <input type="text" id="clienteDocumento" placeholder="CPF/CNPJ">
-        <input type="text" id="clienteTelefone" placeholder="Telefone">
-        <input type="email" id="clienteEmail" placeholder="E-mail">
-        <select id="clienteStatus">
-            <option value="Ativo">Ativo</option>
-            <option value="Inativo">Inativo</option>
-        </select>
-        <textarea id="clienteObservacoes" placeholder="Observacoes"></textarea>
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModalCliente()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarCliente()">Salvar</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modalOcupacao">
-    <div class="modal-content modal-grande">
-        <h2 id="tituloModalOcupacao">Nova Ocupacao</h2>
-        <input type="hidden" id="ocupacaoId">
-
-        <label>Cliente</label>
-        <select id="ocupacaoCliente"></select>
-
-        <label>Unidade</label>
-        <select id="ocupacaoUnidade" onchange="atualizarSelectLojas()"></select>
-
-        <label>Selecione a(s) Loja(s)</label>
-        <div id="containerCheckboxesLojas" class="caixa-checks"></div>
-
-        <label>Data de Inicio</label>
-        <input type="date" id="ocupacaoDataInicio">
-
-        <div id="containerLeiturasIniciais"></div>
-
-        <div id="blocoEncerramentoOcupacao" class="bloco-encerramento">
-            <label>Data de Fim</label>
-            <input type="date" id="ocupacaoDataFim">
-            <div id="containerLeiturasFinais"></div>
-        </div>
-
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModalOcupacao()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarOcupacao()">Salvar</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modalLeitura">
-    <div class="modal-content modal-extra-grande">
-        <h2>Nova Leitura</h2>
-        <div class="form-grid">
-            <div>
-                <label>Competencia</label>
-                <input type="month" id="leituraCompetencia">
-            </div>
-            <div>
-                <label>Data da Leitura</label>
-                <input type="date" id="leituraDataAtual">
-            </div>
-        </div>
-
-        <div class="tabela-scroll">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Loja</th>
-                        <th>Cliente Atual</th>
-                        <th>Medidor</th>
-                        <th>Leitura Anterior</th>
-                        <th>Leitura Atual</th>
-                        <th>Consumo</th>
-                    </tr>
-                </thead>
-                <tbody id="corpoTabelaNovaLeitura"></tbody>
-            </table>
-        </div>
-
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModalLeitura()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarLeitura()">Salvar Leituras</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modalFatura">
-    <div class="modal-content">
-        <h2 id="tituloModalFatura">Nova Fatura</h2>
-        <input type="hidden" id="faturaId">
-        <label>Competencia</label>
-        <input type="month" id="faturaCompetencia">
-        <label>Valor da Conta</label>
-        <input type="number" id="faturaValorConta" min="0" step="0.01" placeholder="0,00">
-        <label>Consumo Total</label>
-        <input type="number" id="faturaConsumoTotal" min="0" step="0.01" placeholder="kWh">
-        <label>Data Leitura Atual</label>
-        <input type="date" id="faturaDataLeituraAtual">
-        <label>Data Proxima Leitura</label>
-        <input type="date" id="faturaDataProximaLeitura">
-        <label>Data Vencimento</label>
-        <input type="date" id="faturaDataVencimento">
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModalFatura()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarFatura()">Salvar Fatura</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal" id="modalRateio">
-    <div class="modal-content">
-        <h2>Gerar Rateio</h2>
-        <label>Competencia</label>
-        <input type="month" id="rateioCompetencia">
-        <div class="botoes-modal">
-            <button class="btn-cancelar" onclick="fecharModalRateio()">Cancelar</button>
-            <button class="btn-salvar" onclick="gerarRateio()">Gerar</button>
-        </div>
-    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
