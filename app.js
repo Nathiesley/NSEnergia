@@ -384,21 +384,87 @@ async function prepararNovaLeituraDados(unidadeId) {
         listarLeiturasDados(unidadeId),
         listarOcupacoesDados()
     ]);
+
     return lojasDaUnidade
         .filter(loja => String(loja.status || "Ativa") !== "Inativa")
         .map(loja => {
+
             const historico = leiturasDaUnidade
                 .filter(leitura => mesmoId(leitura.lojaId, loja.id))
-                .sort((a, b) => (dataLocal(b.dataLeituraAtual)?.getTime() || 0) - (dataLocal(a.dataLeituraAtual)?.getTime() || 0));
+                .sort((a, b) =>
+                    (dataLocal(b.dataLeituraAtual)?.getTime() || 0) -
+                    (dataLocal(a.dataLeituraAtual)?.getTime() || 0)
+                );
+
             const anterior = historico[0];
-            const ocupacaoAtual = ocupacaoDaLojaNaData(ocupacoes, loja.id, hojeISO());
-            const leituraAnterior = anterior ? Number(anterior.leituraAtual || 0) : Number(ocupacaoAtual?.leituraInicial || 0);
-            const dataLeituraAnterior = anterior?.dataLeituraAtual || ocupacaoAtual?.dataInicio || "-";
+
+            // Procura ocupações encerradas desta loja que possuem
+            // uma leitura final registrada.
+            const ocupacoesEncerradas = ocupacoes
+                .filter(item =>
+                    mesmoId(item.lojaId, loja.id) &&
+                    String(item.status || "").toLowerCase() === "encerrada" &&
+                    item.leituraFinal !== null &&
+                    item.leituraFinal !== undefined &&
+                    item.leituraFinal !== ""
+                )
+                .sort((a, b) =>
+                    (dataLocal(b.dataFim)?.getTime() || 0) -
+                    (dataLocal(a.dataFim)?.getTime() || 0)
+                );
+
+            const ultimaOcupacaoEncerrada = ocupacoesEncerradas[0];
+
+            const dataLeituraHistorica = dataLocal(anterior?.dataLeituraAtual);
+            const dataLeituraFinalOcupacao = dataLocal(ultimaOcupacaoEncerrada?.dataFim);
+
+            let leituraAnterior = anterior
+                ? Number(anterior.leituraAtual || 0)
+                : 0;
+
+            let dataLeituraAnterior = anterior?.dataLeituraAtual || "";
+
+            // Se a ocupação terminou depois da última leitura normal,
+            // a leitura final da ocupação passa a ser a leitura anterior.
+            if (
+                ultimaOcupacaoEncerrada &&
+                dataLeituraFinalOcupacao &&
+                (!dataLeituraHistorica ||
+                    dataLeituraFinalOcupacao > dataLeituraHistorica)
+            ) {
+                leituraAnterior = Number(
+                    ultimaOcupacaoEncerrada.leituraFinal || 0
+                );
+
+                dataLeituraAnterior = ultimaOcupacaoEncerrada.dataFim;
+            }
+
+            const ocupacaoAtual = ocupacaoDaLojaNaData(
+                ocupacoes,
+                loja.id,
+                hojeISO()
+            );
+
+            if (!dataLeituraAnterior) {
+                leituraAnterior = Number(
+                    ocupacaoAtual?.leituraInicial || 0
+                );
+
+                dataLeituraAnterior =
+                    ocupacaoAtual?.dataInicio || "-";
+            }
+
             return {
                 lojaId: loja.id,
                 lojaCodigo: loja.codigoLoja,
                 medidor: loja.medidor,
-                clienteAtual: ocupacaoAtual?.clienteNome || clienteDaLojaNaData(ocupacoes, loja.id, hojeISO()),
+                clienteAtual:
+                    ocupacaoAtual?.clienteNome ||
+                    clienteDaLojaNaData(
+                        ocupacoes,
+                        loja.id,
+                        hojeISO()
+                    ),
                 dataLeituraAnterior,
                 leituraAnterior
             };
@@ -500,40 +566,579 @@ async function salvarClienteDados(payload) {
 }
 
 async function gerarRateioDados(unidadeId, competencia) {
-    const [faturasDados, leiturasDados, ocupacoesDados, lojasDaUnidade] = await Promise.all([
+
+    const [
+        faturasDados,
+        leiturasDados,
+        ocupacoesDados,
+        lojasDaUnidade
+    ] = await Promise.all([
         listarFaturasDados(unidadeId),
         listarLeiturasDados(unidadeId),
         listarOcupacoesDados(),
         listarLojasDados(unidadeId)
     ]);
-    const fatura = faturasDados.find(item => String(item.unidadeId).trim() === String(unidadeId).trim() && normalizarCompetencia(item.competencia) === competencia);
-    if (!fatura) throw new Error("Nao existe fatura para esta competencia e unidade.");
-    const leiturasCompetencia = leiturasDados.filter(item => normalizarCompetencia(item.competencia) === competencia);
-    if (!leiturasCompetencia.length) throw new Error("Nao existem leituras para esta competencia.");
-    const valorKwh = Number(fatura.valorKwh || (Number(fatura.valorConta || 0) / Number(fatura.consumoTotal || 1)));
-    const lojasPorId = new Map(lojasDaUnidade.map(loja => [String(loja.id), loja]));
-    const registros = leiturasCompetencia.map(leitura => {
-        const ocupacao = ocupacoesDados.find(item => mesmoId(item.lojaId, leitura.lojaId) && item.status !== "Encerrada");
-        const loja = lojasPorId.get(String(leitura.lojaId));
-        const consumo = Number(leitura.consumo || (Number(leitura.leituraAtual) - Number(leitura.leituraAnterior)) || 0);
-        return {
+
+    const fatura = faturasDados.find(item =>
+        String(item.unidadeId).trim() === String(unidadeId).trim() &&
+        normalizarCompetencia(item.competencia) === competencia
+    );
+
+    if (!fatura) {
+        throw new Error(
+            "Nao existe fatura para esta competencia e unidade."
+        );
+    }
+
+    const leiturasCompetencia = leiturasDados.filter(
+        item =>
+            normalizarCompetencia(item.competencia) === competencia
+    );
+
+    if (!leiturasCompetencia.length) {
+        throw new Error(
+            "Nao existem leituras para esta competencia."
+        );
+    }
+
+    const valorKwh = Number(
+        fatura.valorKwh ||
+        (
+            Number(fatura.valorConta || 0) /
+            Number(fatura.consumoTotal || 1)
+        )
+    );
+
+    const lojasPorId = new Map(
+        lojasDaUnidade.map(loja => [
+            String(loja.id),
+            loja
+        ])
+    );
+
+    const registros = [];
+    const ocupacoesJaGeradas = new Set();
+
+    /*
+     * Descobre a leitura anterior mais próxima de uma determinada loja.
+     */
+    function obterLeituraAnterior(lojaId, dataLimite) {
+
+        const dataLimiteObj = dataLocal(dataLimite);
+
+        return leiturasDados
+            .filter(leitura =>
+                mesmoId(leitura.lojaId, lojaId)
+            )
+            .filter(leitura => {
+
+                const data = dataLocal(
+                    leitura.dataLeituraAtual
+                );
+
+                return data &&
+                    dataLimiteObj &&
+                    data <= dataLimiteObj;
+            })
+            .sort((a, b) =>
+                (dataLocal(b.dataLeituraAtual)?.getTime() || 0) -
+                (dataLocal(a.dataLeituraAtual)?.getTime() || 0)
+            )[0] || null;
+    }
+
+    /*
+     * Adiciona uma linha do rateio.
+     */
+    function adicionarRegistro({
+        leitura,
+        ocupacao,
+        lojaId,
+        inicio,
+        fim,
+        leituraInicial,
+        leituraFinal
+    }) {
+
+        if (!inicio || !fim) return;
+
+        const inicioObj = dataLocal(inicio);
+        const fimObj = dataLocal(fim);
+
+        if (!inicioObj || !fimObj || inicioObj > fimObj) {
+            return;
+        }
+
+        const consumo =
+            Number(leituraFinal || 0) -
+            Number(leituraInicial || 0);
+
+        if (consumo < 0) {
+            console.warn(
+                "Consumo negativo ignorado:",
+                lojaId,
+                ocupacao?.ocupacaoId
+            );
+            return;
+        }
+
+        const loja = lojasPorId.get(
+            String(lojaId)
+        );
+
+        registros.push({
             UnidadeID: unidadeId,
             Competencia: competencia,
-            OcupacaoID: ocupacao?.ocupacaoId || ocupacao?.id || null,
-            LojaID: leitura.lojaId,
-            LojaCodigo: loja?.codigoLoja || leitura.lojaCodigo || "",
-            ClienteNome: ocupacao?.clienteNome || "Vaga / area comum",
-            PeriodoInicio: leitura.dataLeituraAnterior || "",
-            PeriodoFim: leitura.dataLeituraAtual || "",
+
+            OcupacaoID:
+                ocupacao?.ocupacaoId ||
+                ocupacao?.id ||
+                null,
+
+            LojaID: lojaId,
+
+            LojaCodigo:
+                ocupacao?.lojaCodigo ||
+                loja?.codigoLoja ||
+                leitura?.lojaCodigo ||
+                "",
+
+            ClienteNome:
+                ocupacao?.clienteNome ||
+                "Vaga / area comum",
+
+            PeriodoInicio: inicio,
+            PeriodoFim: fim,
+
             Consumo: consumo,
+
             ValorKwh: valorKwh,
-            ValorRateado: consumo * valorKwh,
+
+            ValorRateado:
+                consumo * valorKwh,
+
             Situacao: "Concluido"
-        };
-    });
-    const { error } = await db.from(TABELAS.rateios).insert(registros);
-    if (error) throw error;
-    return registros;
+        });
+
+        if (ocupacao?.ocupacaoId || ocupacao?.id) {
+            ocupacoesJaGeradas.add(
+                String(
+                    ocupacao.ocupacaoId ||
+                    ocupacao.id
+                )
+            );
+        }
+    }
+
+    /*
+     * ============================================================
+     * PARTE 1
+     * Processa cada leitura da competência.
+     * ============================================================
+     */
+
+    for (const leitura of leiturasCompetencia) {
+
+        const dataInicioLeitura =
+            dataLocal(leitura.dataLeituraAnterior);
+
+        const dataFimLeitura =
+            dataLocal(leitura.dataLeituraAtual);
+
+        if (!dataInicioLeitura || !dataFimLeitura) {
+            continue;
+        }
+
+        const ocupacoesDaLoja = ocupacoesDados
+            .filter(item =>
+                mesmoId(item.lojaId, leitura.lojaId)
+            )
+            .filter(item => {
+
+                const inicioOcupacao =
+                    dataLocal(item.dataInicio);
+
+                const fimOcupacao =
+                    dataLocal(item.dataFim);
+
+                if (!inicioOcupacao) {
+                    return false;
+                }
+
+                /*
+                 * A ocupação precisa ter alguma interseção
+                 * com o período da leitura.
+                 */
+                return (
+                    inicioOcupacao <= dataFimLeitura &&
+                    (
+                        !fimOcupacao ||
+                        fimOcupacao >= dataInicioLeitura
+                    )
+                );
+            })
+            .sort((a, b) =>
+                (dataLocal(a.dataInicio)?.getTime() || 0) -
+                (dataLocal(b.dataInicio)?.getTime() || 0)
+            );
+
+        /*
+         * Se não existe ocupação cadastrada para o período,
+         * mantém o comportamento antigo: vaga/área comum.
+         */
+        if (!ocupacoesDaLoja.length) {
+
+            const consumo =
+                Number(leitura.leituraAtual || 0) -
+                Number(leitura.leituraAnterior || 0);
+
+            registros.push({
+                UnidadeID: unidadeId,
+                Competencia: competencia,
+                OcupacaoID: null,
+                LojaID: leitura.lojaId,
+                LojaCodigo:
+                    leitura.lojaCodigo ||
+                    lojasPorId.get(
+                        String(leitura.lojaId)
+                    )?.codigoLoja ||
+                    "",
+                ClienteNome:
+                    "Vaga / area comum",
+
+                PeriodoInicio:
+                    somarDiasISO(
+                        leitura.dataLeituraAnterior,
+                        1
+                    ),
+
+                PeriodoFim:
+                    leitura.dataLeituraAtual,
+
+                Consumo: consumo,
+                ValorKwh: valorKwh,
+                ValorRateado:
+                    consumo * valorKwh,
+
+                Situacao: "Concluido"
+            });
+
+            continue;
+        }
+
+        /*
+         * Valor que representa a leitura no começo do intervalo.
+         */
+        let leituraAtualDoIntervalo =
+            Number(leitura.leituraAnterior || 0);
+
+        for (const ocupacao of ocupacoesDaLoja) {
+
+            const inicioOcupacao =
+                dataLocal(ocupacao.dataInicio);
+
+            const fimOcupacao =
+                dataLocal(ocupacao.dataFim);
+
+            /*
+             * Começo efetivo da ocupação dentro da competência.
+             */
+            let inicioPeriodo;
+
+            if (
+                inicioOcupacao &&
+                inicioOcupacao > dataInicioLeitura
+            ) {
+                inicioPeriodo =
+                    dataISO(inicioOcupacao);
+            } else {
+                /*
+                 * O consumo começa no dia seguinte à leitura anterior.
+                 */
+                inicioPeriodo =
+                    somarDiasISO(
+                        leitura.dataLeituraAnterior,
+                        1
+                    );
+            }
+
+            /*
+             * Fim efetivo da ocupação.
+             */
+            let fimPeriodo;
+            let leituraFinalDoIntervalo;
+
+            if (
+                fimOcupacao &&
+                fimOcupacao < dataFimLeitura
+            ) {
+
+                fimPeriodo =
+                    dataISO(fimOcupacao);
+
+                /*
+                 * A leitura final cadastrada no encerramento
+                 * passa a ser a leitura final deste pedaço.
+                 */
+                leituraFinalDoIntervalo =
+                    Number(
+                        ocupacao.leituraFinal || 0
+                    );
+
+            } else {
+
+                fimPeriodo =
+                    leitura.dataLeituraAtual;
+
+                leituraFinalDoIntervalo =
+                    Number(
+                        leitura.leituraAtual || 0
+                    );
+            }
+
+            /*
+             * Não deixa criar pedaço fora do intervalo
+             * da leitura.
+             */
+            const inicioObj =
+                dataLocal(inicioPeriodo);
+
+            const fimObj =
+                dataLocal(fimPeriodo);
+
+            if (
+                !inicioObj ||
+                !fimObj ||
+                inicioObj > fimObj
+            ) {
+                continue;
+            }
+
+            /*
+             * Se a ocupação começou depois da leitura anterior
+             * e possui LeituraInicial, podemos usar essa leitura
+             * como ponto de partida.
+             */
+            if (
+                inicioOcupacao &&
+                inicioOcupacao > dataInicioLeitura &&
+                ocupacao.leituraInicial !== null &&
+                ocupacao.leituraInicial !== undefined &&
+                ocupacao.leituraInicial !== ""
+            ) {
+                leituraAtualDoIntervalo =
+                    Number(
+                        ocupacao.leituraInicial
+                    );
+            }
+
+            adicionarRegistro({
+                leitura,
+                ocupacao,
+                lojaId: leitura.lojaId,
+                inicio: inicioPeriodo,
+                fim: fimPeriodo,
+                leituraInicial:
+                    leituraAtualDoIntervalo,
+                leituraFinal:
+                    leituraFinalDoIntervalo
+            });
+
+            /*
+             * Se essa ocupação terminou, a leitura final dela
+             * vira a leitura inicial da próxima ocupação.
+             */
+            if (
+                fimOcupacao &&
+                fimOcupacao < dataFimLeitura
+            ) {
+                leituraAtualDoIntervalo =
+                    Number(
+                        ocupacao.leituraFinal || 0
+                    );
+            }
+        }
+    }
+
+    /*
+     * ============================================================
+     * PARTE 2
+     * Ocupações encerradas que NÃO possuem leitura na competência.
+     *
+     * É aqui que entra principalmente a Loja 5.
+     *
+     * Ela teve:
+     * 11/07 -> leitura anterior
+     * 20/07 -> LeituraFinal
+     * depois disso o medidor ficou inativo.
+     * ============================================================
+     */
+
+    const ultimaDataDaCompetencia =
+        leiturasCompetencia
+            .map(item => dataLocal(item.dataLeituraAtual))
+            .filter(Boolean)
+            .sort((a, b) => b - a)[0];
+
+    const ocupacoesEncerradas =
+        ocupacoesDados.filter(item => {
+
+            if (
+                String(item.status || "").toLowerCase() !==
+                "encerrada"
+            ) {
+                return false;
+            }
+
+            if (
+                item.leituraFinal === null ||
+                item.leituraFinal === undefined ||
+                item.leituraFinal === ""
+            ) {
+                return false;
+            }
+
+            const fim =
+                dataLocal(item.dataFim);
+
+            return (
+                fim &&
+                ultimaDataDaCompetencia &&
+                fim < ultimaDataDaCompetencia
+            );
+        });
+
+    for (const ocupacao of ocupacoesEncerradas) {
+
+        const ocupacaoId =
+            ocupacao.ocupacaoId ||
+            ocupacao.id;
+
+        /*
+         * Se já foi criada pela Parte 1,
+         * não duplica.
+         */
+        if (
+            ocupacaoId &&
+            ocupacoesJaGeradas.has(
+                String(ocupacaoId)
+            )
+        ) {
+            continue;
+        }
+
+        const lojaId = ocupacao.lojaId;
+
+        const fimOcupacao =
+            dataLocal(ocupacao.dataFim);
+
+        if (!fimOcupacao) continue;
+
+        /*
+         * Procura a última leitura existente antes
+         * do encerramento.
+         */
+        const leituraAnterior =
+            obterLeituraAnterior(
+                lojaId,
+                ocupacao.dataFim
+            );
+
+        if (!leituraAnterior) {
+            continue;
+        }
+
+        const dataLeituraAnterior =
+            dataLocal(
+                leituraAnterior.dataLeituraAtual
+            );
+
+        if (!dataLeituraAnterior) {
+            continue;
+        }
+
+        /*
+         * Só interessa se a ocupação realmente pertence
+         * ao período entre a leitura anterior e a competência.
+         */
+        if (
+            fimOcupacao <= dataLeituraAnterior
+        ) {
+            continue;
+        }
+
+        const inicioPeriodo =
+            ocupacao.dataInicio &&
+            dataLocal(ocupacao.dataInicio) >
+                dataLeituraAnterior
+                ? dataISO(
+                    dataLocal(
+                        ocupacao.dataInicio
+                    )
+                )
+                : somarDiasISO(
+                    leituraAnterior.dataLeituraAtual,
+                    1
+                );
+
+        adicionarRegistro({
+            leitura: leituraAnterior,
+            ocupacao,
+            lojaId,
+            inicio: inicioPeriodo,
+            fim: dataISO(fimOcupacao),
+            leituraInicial:
+                Number(
+                    leituraAnterior.leituraAtual || 0
+                ),
+            leituraFinal:
+                Number(
+                    ocupacao.leituraFinal || 0
+                )
+        });
+    }
+
+    /*
+     * Evita registros duplicados acidentais.
+     */
+    const registrosUnicos = [];
+
+    const chaves = new Set();
+
+    for (const registro of registros) {
+
+        const chave = [
+            registro.UnidadeID,
+            registro.Competencia,
+            registro.OcupacaoID || "SEM_OCUPACAO",
+            registro.LojaID,
+            registro.PeriodoInicio,
+            registro.PeriodoFim
+        ].join("|");
+
+        if (chaves.has(chave)) {
+            continue;
+        }
+
+        chaves.add(chave);
+        registrosUnicos.push(registro);
+    }
+
+    if (!registrosUnicos.length) {
+        throw new Error(
+            "Nenhum registro de rateio foi encontrado para esta competencia."
+        );
+    }
+
+    const { error } =
+        await db
+            .from(TABELAS.rateios)
+            .insert(registrosUnicos);
+
+    if (error) {
+        throw error;
+    }
+
+    return registrosUnicos;
 }
 
 async function gerarRelatorioDados(filtros) {
