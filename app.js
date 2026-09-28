@@ -417,7 +417,10 @@ async function obterDashboardDados() {
         .reduce((soma, item) => soma + Number(item.consumo || 0), 0);
     const faturasUltimaCompetencia = faturasDados.filter(item => normalizarCompetencia(item.competencia) === ultimaCompetencia);
     const valorMedioKwhUltimaCompetencia = faturasUltimaCompetencia.reduce((soma, item) => soma + Number(item.valorKwh || 0), 0) / (faturasUltimaCompetencia.length || 1);
-    const proximasLeituras = unidadesDados.map(unidade => {
+    const unidadesAtivas = unidadesDados.filter(
+    unidade => String(unidade.status || "").toLowerCase() !== "inativa"
+);
+	const proximasLeituras = unidadesAtivas.map(unidade => {
         const leiturasUnidade = leiturasDados
             .filter(item => mesmoId(item.unidadeId, unidade.id))
             .sort((a, b) => (dataLocal(b.dataLeituraAtual)?.getTime() || 0) - (dataLocal(a.dataLeituraAtual)?.getTime() || 0));
@@ -448,7 +451,7 @@ async function obterDashboardDados() {
         return data && data < hoje;
     }).length;
     return {
-        totalUnidades: unidadesDados.length,
+        totalUnidades: unidadesAtivas.length,
         totalLojas: lojasDados.length,
         lojasOcupadas: ocupacoesAtivas.length,
         lojasVagas: Math.max(0, lojasDados.length - ocupacoesAtivas.length),
