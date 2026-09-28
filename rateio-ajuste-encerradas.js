@@ -42,6 +42,13 @@
         if (mesclagensResposta.error) throw mesclagensResposta.error;
         const mesclagens = mesclagensResposta.data || [];
 
+        const { data: rateiosGerados, error: erroRateios } = await db
+            .from(TABELAS.rateios)
+            .select("*")
+            .eq("UnidadeID", unidadeId)
+            .eq("Competencia", competencia);
+        if (erroRateios) throw erroRateios;
+
         function mergeAtivo(merge, data) {
             if (String(merge.Status ?? merge.status ?? "") !== "Ativa") return false;
             const inicio = dataAjuste(merge.DataInicio ?? merge.dataInicio);
@@ -81,43 +88,39 @@
             return lojasResposta.find(loja => mesmoAjuste(loja.id, lojaId))?.codigoLoja || `Loja ${lojaId}`;
         }
 
-        const atualizacoes = [];
-        for (const registro of registros) {
+        for (const registro of rateiosGerados || []) {
             const ocupacao = ocupacoes.find(o => mesmoAjuste(o.id, registro.OcupacaoID));
             if (!ocupacao) continue;
 
             const fimOcupacao = dataAjuste(ocupacao.dataFim);
             if (String(ocupacao.status || "") === "Encerrada" && fimOcupacao) {
-                // Ocupacoes encerradas antes da fusao permanecem individualizadas.
-                atualizacoes.push({
-                    id: registro.ID ?? registro.id,
-                    dados: { LojaCodigo: codigoLoja(ocupacao.lojaId) }
-                });
+                // A ocupacao encerrada antes da fusao permanece individualizada.
+                const { error } = await db.from(TABELAS.rateios)
+                    .update({ LojaCodigo: codigoLoja(ocupacao.lojaId) })
+                    .eq("ID", registro.ID);
+                if (error) throw error;
                 continue;
             }
 
             const merge = mergeDaLoja(ocupacao.lojaId, registro.PeriodoFim);
             const grupo = grupoDoMerge(merge, registro.PeriodoFim);
-            if (grupo) {
-                const inicioMinimo = adicionarDiaAjuste(grupo.inicio);
-                const periodoAtual = dataAjuste(registro.PeriodoInicio);
-                const periodoMinimo = dataAjuste(inicioMinimo);
-                const novoInicio = periodoMinimo && (!periodoAtual || periodoAtual < periodoMinimo) ? inicioMinimo : registro.PeriodoInicio;
-                atualizacoes.push({
-                    id: registro.ID ?? registro.id,
-                    dados: {
-                        LojaCodigo: grupo.ids.map(codigoLoja).join(" + "),
-                        PeriodoInicio: novoInicio
-                    }
-                });
-            }
-        }
+            if (!grupo) continue;
 
-        for (const atualizacao of atualizacoes) {
-            if (atualizacao.id === undefined || atualizacao.id === null) continue;
-            const { error } = await db.from(TABELAS.rateios).update(atualizacao.dados).eq("ID", atualizacao.id);
+            // A mesclagem de 20/07 passa a valer para o periodo de uso a partir de 21/07.
+            const inicioMinimo = adicionarDiaAjuste(grupo.inicio);
+            const periodoAtual = dataAjuste(registro.PeriodoInicio);
+            const periodoMinimo = dataAjuste(inicioMinimo);
+            const novoInicio = periodoMinimo && (!periodoAtual || periodoAtual < periodoMinimo)
+                ? inicioMinimo
+                : registro.PeriodoInicio;
+
+            const { error } = await db.from(TABELAS.rateios)
+                .update({
+                    LojaCodigo: grupo.ids.map(codigoLoja).join(" + "),
+                    PeriodoInicio: novoInicio
+                })
+                .eq("ID", registro.ID);
             if (error) throw error;
-            Object.assign(registros.find(r => mesmoAjuste(r.ID ?? r.id, atualizacao.id)) || {}, atualizacao.dados);
         }
 
         return registros;
