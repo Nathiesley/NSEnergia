@@ -97,7 +97,7 @@
                 // A ocupacao encerrada antes da fusao permanece individualizada.
                 const { error } = await db.from(TABELAS.rateios)
                     .update({ LojaCodigo: codigoLoja(ocupacao.lojaId) })
-                    .eq("ID", registro.ID);
+                    .eq("id", registro.id);
                 if (error) throw error;
                 continue;
             }
@@ -119,10 +119,68 @@
                     LojaCodigo: grupo.ids.map(codigoLoja).join(" + "),
                     PeriodoInicio: novoInicio
                 })
-                .eq("ID", registro.ID);
+                .eq("id", registro.id);
             if (error) throw error;
         }
 
         return registros;
+    };
+
+    // O app.js original chama a funcao gerarRateio() diretamente pelo onclick.
+    // Esta versao garante que o gerador historico acima seja usado e que uma
+    // competencia existente seja substituida, sem tentar acessar RATEIOS.ID.
+    window.gerarRateio = async function () {
+        if (!unidadeRateiosSelecionada) return;
+
+        const competencia = normalizarCompetencia(
+            $("rateioCompetencia") ? $("rateioCompetencia").value : ""
+        );
+        if (!competencia) {
+            alert("Informe a competencia do rateio.");
+            return;
+        }
+
+        const executar = async () => {
+            const [faturas, leituras] = await Promise.all([
+                listarFaturasDados(unidadeRateiosSelecionada.id),
+                listarLeiturasDados(unidadeRateiosSelecionada.id)
+            ]);
+
+            const fatura = faturas.find(item =>
+                mesmoAjuste(item.unidadeId, unidadeRateiosSelecionada.id) &&
+                normalizarCompetencia(item.competencia) === competencia
+            );
+            if (!fatura) {
+                throw new Error("Nao existe fatura para esta competencia e unidade.");
+            }
+
+            if (!leituras.some(item => normalizarCompetencia(item.competencia) === competencia)) {
+                throw new Error("Nao existem leituras para esta competencia.");
+            }
+
+            // Gera novamente a competencia sem duplicar registros antigos.
+            const { error: erroExclusao } = await db
+                .from(TABELAS.rateios)
+                .delete()
+                .eq("UnidadeID", unidadeRateiosSelecionada.id)
+                .eq("Competencia", competencia);
+            if (erroExclusao) throw erroExclusao;
+
+            return window.gerarRateioDados(unidadeRateiosSelecionada.id, competencia);
+        };
+
+        try {
+            if (typeof executarComLoading === "function") {
+                await executarComLoading("Salvando dados...", executar);
+            } else {
+                await executar();
+            }
+
+            fecharModalRateio();
+            setTimeout(() => selecionarUnidadeRateios(unidadeRateiosSelecionada.id), 300);
+        } catch (erro) {
+            console.error("Erro ao gerar rateio:", erro);
+            alert(`Nao foi possivel gerar o rateio. ${erro?.message || erro}`);
+        }
     };
 })();
