@@ -284,7 +284,10 @@ async function inserirRegistro(tabela, dados) {
 }
 
 async function atualizarRegistro(tabela, id, dados) {
-    const colunaId = tabela === TABELAS.faturas ? "ID" : "id";
+    const colunaId =
+    tabela === TABELAS.faturas || tabela === TABELAS.ocupacoes
+        ? "ID"
+        : "id";
 
     const { data, error } = await db
         .from(tabela)
