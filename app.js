@@ -284,7 +284,12 @@ async function inserirRegistro(tabela, dados) {
 }
 
 async function atualizarRegistro(tabela, id, dados) {
-    const { data, error } = await db.from(tabela).update(dados).eq("ID", id).select();
+    const { data, error } = await db
+        .from(tabela)
+        .update(dados)
+        .eq("id", id)
+        .select();
+
     if (error) throw error;
     return normalizarRegistro(data?.[0]);
 }
