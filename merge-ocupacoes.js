@@ -95,8 +95,6 @@
         const lojasMescladas = new Set(grupos.flatMap(g => g.ids));
         let html = "";
 
-        // Uma mesclagem representa uma única medição, mas pode conter vários espaços físicos.
-        // Por isso a opção mostra todas as lojas e gera apenas uma leitura inicial.
         grupos.forEach(grupo => {
             const ocupada = grupo.ids.some(id => ocupacoes.some(o =>
                 String(o.lojaId) === String(id) && String(o.status || "Ativa") === "Ativa"
@@ -211,5 +209,17 @@
     document.addEventListener("DOMContentLoaded", () => {
         const campoData = $("ocupacaoDataInicio");
         if (campoData) campoData.addEventListener("change", atualizarSelectLojasMescladas);
+    });
+
+    // Carrega as correcoes historicas depois de todas as regras de mesclagem.
+    function carregarScriptSequencial(url, proximo) {
+        const script = document.createElement("script");
+        script.src = url;
+        script.onload = proximo || null;
+        document.body.appendChild(script);
+    }
+
+    carregarScriptSequencial("historico-rateio.js", () => {
+        carregarScriptSequencial("rateio-ajuste-encerradas.js");
     });
 })();
