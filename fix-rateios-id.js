@@ -4,6 +4,7 @@
 (function () {
     const atualizarRegistroOriginal = window.atualizarRegistro;
     const excluirRegistroOriginal = window.excluirRegistro;
+    const excluirRateiosPorCompetenciaOriginal = window.excluirRateiosPorCompetencia;
 
     if (typeof atualizarRegistroOriginal === "function") {
         window.atualizarRegistro = async function (tabela, id, dados) {
@@ -22,8 +23,6 @@
         };
     }
 
-    // A rotina de exclusao original usa "ID" fixo para todas as tabelas.
-    // Aqui corrigimos somente RATEIOS para usar "id".
     if (typeof excluirRegistroOriginal === "function") {
         window.excluirRegistro = async function (tabela, id) {
             if (tabela === "RATEIOS") {
@@ -37,6 +36,20 @@
             }
 
             return excluirRegistroOriginal(tabela, id);
+        };
+    }
+
+    // Ao gerar novamente um rateio, o sistema primeiro exclui o rateio
+    // existente daquela competencia. RATEIOS usa "id", nao "ID".
+    if (typeof excluirRateiosPorCompetenciaOriginal === "function") {
+        window.excluirRateiosPorCompetencia = async function (unidadeId, competencia) {
+            const { error } = await db
+                .from("RATEIOS")
+                .delete()
+                .eq("UnidadeID", unidadeId)
+                .eq("Competencia", competencia);
+
+            if (error) throw error;
         };
     }
 })();
